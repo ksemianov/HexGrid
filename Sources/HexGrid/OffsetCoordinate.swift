@@ -8,7 +8,7 @@
 import Foundation
 
 /// A value representing a position in a hexagonal grid.
-public struct OffsetCoordinate: Hashable {
+public struct OffsetCoordinate: Hashable, Equatable, Codable {
     /// The row in a hexagonal grid.
     public var row: Int
 
