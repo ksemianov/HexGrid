@@ -8,63 +8,68 @@
 import SwiftUI
 
 struct HexLayout: Layout {
-    struct CacheData {
-        let offsetX: Int
-        let offsetY: Int
-        let width: CGFloat
-        let height: CGFloat
-    }
-
-    func makeCache(subviews: Subviews) -> CacheData? {
+    func makeCache(subviews: Subviews) -> CGRect {
         let coordinates = subviews.compactMap { $0[OffsetCoordinateLayoutValueKey.self] }
 
-        if coordinates.isEmpty { return nil }
-
-        let offsetX = coordinates.map { $0.col }.min()!
-        let offsetY = coordinates.map { $0.row }.min()!
-
-        let coordinatesX = coordinates.map { CGFloat($0.col) }
-        let minX: CGFloat = coordinatesX.min()!
-        let maxX: CGFloat = coordinatesX.max()!
-        let width = maxX - minX + 4 / 3
-
-        let coordinatesY = coordinates.map { CGFloat($0.row) + 1 / 2 * CGFloat($0.col & 1) }
-        let minY: CGFloat = coordinatesY.min()!
-        let maxY: CGFloat = coordinatesY.max()!
-        let height = maxY - minY + 1
-
-        return CacheData(offsetX: offsetX, offsetY: offsetY, width: width, height: height)
+        return hexLayoutNormalizedBounds(coordinates: coordinates)
     }
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData?) -> CGSize {
-        guard let cache else { return .zero }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout CGRect) -> CGSize {
+        if cache.isEmpty { return .zero }
 
-        let size = proposal.replacingUnspecifiedDimensions()
-        let step = min(size.width / cache.width, size.height / cache.height / Hexagon.aspectRatio)
-
-        return CGSize(width: step * cache.width, height: step * cache.height * Hexagon.aspectRatio)
+        let proposalSize = proposal.replacingUnspecifiedDimensions()
+        let cellStep = hexLayoutCellStep(proposal: proposalSize, normalizedSize: cache.size)
+        return CGSize(width: cellStep.width * cache.width, height: cellStep.height * cache.height)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout CacheData?) {
-        guard let cache else { return }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout CGRect) {
+        if cache.isEmpty { return }
 
-        let size = proposal.replacingUnspecifiedDimensions()
-        let step = min(size.width / cache.width, size.height / cache.height / Hexagon.aspectRatio)
-        let width = step * 4 / 3
-        let proposal = ProposedViewSize(width: width, height: width / Hexagon.aspectRatio)
-        let x = width / 2 + bounds.minX
-        let y = width / Hexagon.aspectRatio / 2 + bounds.minY
+        let proposalSize = proposal.replacingUnspecifiedDimensions()
+        let cellStep = hexLayoutCellStep(proposal: proposalSize, normalizedSize: cache.size)
+        let cellSize = hexLayoutCellSize(cellStep: cellStep)
+        let subviewProposal = ProposedViewSize(width: cellSize.width, height: cellSize.height)
 
         for subview in subviews {
-            guard let coord = subview[OffsetCoordinateLayoutValueKey.self] else { continue }
+            guard let coordinate = subview[OffsetCoordinateLayoutValueKey.self] else { continue }
 
-            let dx: CGFloat = step * CGFloat(coord.col - cache.offsetX)
-            let dy: CGFloat = step * Hexagon.aspectRatio * (CGFloat(coord.row - cache.offsetY) + 1 / 2 * CGFloat(coord.col & 1))
-            let point = CGPoint(x: x + dx, y: y + dy)
-
-            subview.place(at: point, anchor: .center, proposal: proposal)
+            let cellCenter = hexLayoutCellCenter(coordinate: coordinate, normalizedOrigin: cache.origin, cellStep: cellStep)
+            let point = CGPoint(x: bounds.minX + cellCenter.x, y: bounds.minY + cellCenter.y)
+            subview.place(at: point, anchor: .center, proposal: subviewProposal)
         }
     }
+}
+
+func hexLayoutNormalizedBounds(coordinates: [OffsetCoordinate]) -> CGRect {
+    if coordinates.isEmpty { return .zero }
+
+    let normalizedX = coordinates.map { CGFloat($0.col) }
+    let normalizedY = coordinates.map { CGFloat($0.row) + 1 / 2 * CGFloat($0.col & 1) }
+
+    let minX: CGFloat = normalizedX.min()!
+    let maxX: CGFloat = normalizedX.max()!
+    let width = maxX - minX + 4 / 3
+
+    let minY: CGFloat = normalizedY.min()!
+    let maxY: CGFloat = normalizedY.max()!
+    let height = maxY - minY + 1
+
+    return CGRect(x: CGFloat(minX), y: CGFloat(minY), width: width, height: height)
+}
+
+func hexLayoutCellStep(proposal size: CGSize, normalizedSize: CGSize) -> CGSize {
+    let scaleX: CGFloat = min(size.width / normalizedSize.width, size.height / normalizedSize.height / Hexagon.aspectRatio)
+    return CGSize(width: scaleX, height: scaleX * Hexagon.aspectRatio)
+}
+
+func hexLayoutCellSize(cellStep: CGSize) -> CGSize {
+    return CGSize(width: cellStep.width * 4 / 3, height: cellStep.height)
+}
+
+func hexLayoutCellCenter(coordinate: OffsetCoordinate, normalizedOrigin: CGPoint, cellStep: CGSize) -> CGPoint {
+    let normalizedX = CGFloat(coordinate.col) - normalizedOrigin.x + 2 / 3
+    let normalizedY = CGFloat(coordinate.row) - normalizedOrigin.y + 1 / 2 * CGFloat(coordinate.col & 1) + 1 / 2
+    return CGPoint(x: cellStep.width * normalizedX, y: cellStep.height * normalizedY)
 }
 
 struct OffsetCoordinateLayoutValueKey: LayoutValueKey {

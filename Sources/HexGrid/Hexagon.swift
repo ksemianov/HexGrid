@@ -16,13 +16,12 @@ public struct Hexagon: Shape {
         var path = Path()
 
         let center = CGPoint(x: rect.midX, y: rect.midY)
-        let width = min(rect.width, rect.height * Self.aspectRatio)
-        let size = width / 2
+        let radius = Self.diameter(for: rect.size) / 2
         let corners = (0..<6)
             .map {
-                let angle = -CGFloat.pi / 3 * CGFloat($0)
-                let dx = size * cos(angle)
-                let dy = size * sin(angle)
+                let angle = CGFloat.pi / 3 * CGFloat($0)
+                let dx = radius * cos(angle)
+                let dy = radius * sin(angle)
 
                 return CGPoint(x: center.x + dx, y: center.y + dy)
             }
@@ -39,15 +38,16 @@ public struct Hexagon: Shape {
 
     public func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize {
         let size = proposal.replacingUnspecifiedDimensions(by: .infinity)
-
-        let width = min(size.width, size.height * Self.aspectRatio)
-        let height = width / Self.aspectRatio
-
-        return CGSize(width: width, height: height)
+        let diameter = Self.diameter(for: size)
+        return CGSize(width: diameter, height: diameter / Self.aspectRatio)
     }
 
     /// Creates a new hexagon shape.
     public init() {}
+
+    private static func diameter(for size: CGSize) -> CGFloat {
+        return min(size.width, size.height * Self.aspectRatio)
+    }
 }
 
 extension CGSize {
